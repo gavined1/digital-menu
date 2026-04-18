@@ -3,10 +3,11 @@
 import dynamic from "next/dynamic";
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useTransition } from "react";
 import Image from "next/image";
-import { Coffee, Loader2, MapPin, Moon, Search, Star, Sun, X } from "lucide-react";
+import { Coffee, Loader2, MapPin, Moon, Search, Sun, X } from "lucide-react";
 import type { MenuItem } from "@/lib/menu";
 import type { Category } from "@/lib/menu-data";
 import type { HeroSection } from "@/lib/hero-data";
+import { MenuGrid } from "@/components/MenuGrid";
 import { useMenuStore } from "@/store/menu-store";
 
 const ProductDetail = dynamic(() => import("./ProductDetail"), { ssr: false });
@@ -25,10 +26,6 @@ const LOADING_INITIAL = (
   <div className="flex justify-center py-16" aria-busy="true">
     <Loader2 className="h-8 w-8 animate-spin text-amber-500" aria-hidden />
   </div>
-);
-
-const LOADING_MORE = (
-  <Loader2 className="h-6 w-6 animate-spin text-amber-500" aria-hidden />
 );
 
 const EMPTY_STATE = (
@@ -391,74 +388,15 @@ const MenuPageClient: React.FC<MenuPageClientProps> = ({
               </button>
             </div>
           ) : displayItems.length > 0 ? (
-            <>
-              <div
-                className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6"
-                role="list"
-                aria-label="Menu products"
-              >
-                {displayItems.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    role="listitem"
-                    aria-label={`${item.name}, ${item.price}`}
-                    onClick={() => setSelectedItem(item)}
-                    onMouseEnter={preloadProductDetail}
-                    onFocus={preloadProductDetail}
-                    className="group relative bg-white dark:bg-zinc-900 rounded-2xl p-2 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer border border-zinc-100 dark:border-zinc-800 flex flex-col menu-grid-item text-left w-full"
-                  >
-                    <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-zinc-100 dark:bg-zinc-800">
-                      {item.image?.trim() ? (
-                        <Image
-                          src={item.image}
-                          alt={item.name}
-                          fill
-                          loading="lazy"
-                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                          sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                        />
-                      ) : (
-                        <div
-                          className="absolute inset-0 flex items-center justify-center bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 text-[10px] text-center px-2 leading-snug"
-                          aria-hidden
-                        >
-                          No photo
-                        </div>
-                      )}
-                      <div className="absolute top-2 right-2">
-                        <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 bg-white dark:bg-zinc-900 px-2 py-1 rounded-full border border-zinc-200 dark:border-zinc-800">
-                          {item.price}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="mt-2 flex flex-col grow">
-                      <h3 className="font-bold text-zinc-900 dark:text-zinc-100 text-xs md:text-sm leading-tight mb-0.5 line-clamp-1">
-                        {item.name}
-                      </h3>
-                      <p className="text-[10px] text-zinc-500 dark:text-zinc-400 line-clamp-2 leading-relaxed mb-2">
-                        {item.description}
-                      </p>
-                      <div className="mt-auto flex items-center gap-1 text-amber-500">
-                        <Star size={10} fill="currentColor" />
-                        <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400">
-                          {item.rating}
-                        </span>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-              {!isSearchActive ? (
-                <div
-                  ref={loadMoreRef}
-                  className="min-h-[72px] flex items-center justify-center py-8"
-                  aria-hidden
-                >
-                  {loading && items.length > 0 ? LOADING_MORE : null}
-                </div>
-              ) : null}
-            </>
+            <MenuGrid
+              items={displayItems}
+              onSelectItem={setSelectedItem}
+              onPeekDetail={preloadProductDetail}
+              loadMoreRef={loadMoreRef}
+              loadingMore={
+                !isSearchActive && loading && items.length > 0
+              }
+            />
           ) : loadError && items.length === 0 ? (
             <div className="py-8" aria-hidden />
           ) : (

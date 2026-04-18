@@ -1,7 +1,8 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
+import { PUBLIC_MENU_CACHE_TAG } from "@/lib/cache-tags";
 
 import {
   DIGIMENU_EXPORT_VERSION,
@@ -11,8 +12,13 @@ import {
 import { getStoragePathFromPublicUrl } from "@/lib/storage-utils";
 import { ALLOWED_MIME_TYPES, MAX_FILE_BYTES, MENU_ITEMS_BUCKET } from "@/lib/storage-constants";
 
-function revalidateMenuData() {
+function invalidatePublicMenu() {
+  updateTag(PUBLIC_MENU_CACHE_TAG);
   revalidatePath("/menu");
+}
+
+function revalidateMenuData() {
+  invalidatePublicMenu();
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/hero");
   revalidatePath("/dashboard/categories");
@@ -47,7 +53,7 @@ export async function updateHero(form: HeroForm) {
     .eq("id", 1);
 
   if (error) return { error: error.message };
-  revalidatePath("/menu");
+  invalidatePublicMenu();
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/hero");
   return {};
@@ -62,7 +68,7 @@ export async function createCategory(name: string, sortOrder: number) {
     .single();
 
   if (error) return { error: error.message };
-  revalidatePath("/menu");
+  invalidatePublicMenu();
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/categories");
   return { id: data.id };
@@ -76,7 +82,7 @@ export async function updateCategory(id: number, name: string, sortOrder: number
     .eq("id", id);
 
   if (error) return { error: error.message };
-  revalidatePath("/menu");
+  invalidatePublicMenu();
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/categories");
   return {};
@@ -93,7 +99,7 @@ export async function reorderCategories(
       .eq("id", id);
     if (error) return { error: error.message };
   }
-  revalidatePath("/menu");
+  invalidatePublicMenu();
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/categories");
   return {};
@@ -103,7 +109,7 @@ export async function deleteCategory(id: number) {
   const supabase = await createClient();
   const { error } = await supabase.from("categories").delete().eq("id", id);
   if (error) return { error: error.message };
-  revalidatePath("/menu");
+  invalidatePublicMenu();
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/categories");
   revalidatePath("/dashboard/menu-items");
@@ -138,7 +144,7 @@ export async function createMenuItem(form: MenuItemForm) {
     .single();
 
   if (error) return { error: error.message };
-  revalidatePath("/menu");
+  invalidatePublicMenu();
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/menu-items");
   return { id: data.id };
@@ -162,7 +168,7 @@ export async function updateMenuItem(id: number, form: MenuItemForm) {
     .eq("id", id);
 
   if (error) return { error: error.message };
-  revalidatePath("/menu");
+  invalidatePublicMenu();
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/menu-items");
   return {};
@@ -184,7 +190,7 @@ export async function deleteMenuItem(id: number) {
   }
   const { error } = await supabase.from("menu_items").delete().eq("id", id);
   if (error) return { error: error.message };
-  revalidatePath("/menu");
+  invalidatePublicMenu();
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/menu-items");
   return {};
