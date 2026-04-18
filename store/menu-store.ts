@@ -11,8 +11,6 @@ type MenuState = {
   categories: Category[];
   categoryNames: string[];
   items: MenuItem[];
-  /** Next DB offset for `fetchMenuRange` (equals current `items.length`). */
-  nextOffset: number;
   hasMore: boolean;
   loading: boolean;
   /** Bumped on each new list fetch so stale async results are ignored. */
@@ -29,6 +27,8 @@ type MenuActions = {
   selectCategory: (category: string) => Promise<void>;
   setSelectedItem: (item: MenuItem | null) => void;
   setIsSticky: (value: boolean) => void;
+  /** Apply server-rendered first page for "All" to skip a client round-trip. */
+  hydrateFromServerFirstPage: (data: { items: MenuItem[]; hasMore: boolean }) => void;
   loadFirstPage: () => Promise<void>;
   loadMore: () => Promise<void>;
   /** Refetch the current category from offset 0 (e.g. after an error). */
@@ -52,7 +52,6 @@ export const useMenuStore = create<MenuState & MenuActions>((set, get) => ({
   categories: [],
   categoryNames: [],
   items: [],
-  nextOffset: 0,
   hasMore: true,
   loading: true,
   fetchEpoch: 0,
@@ -66,12 +65,23 @@ export const useMenuStore = create<MenuState & MenuActions>((set, get) => ({
 
   setActiveCategory: (activeCategory) => set({ activeCategory }),
 
+  hydrateFromServerFirstPage: (data) => {
+    const epoch = get().fetchEpoch + 1;
+    set({
+      items: data.items,
+      hasMore: data.hasMore,
+      loading: false,
+      loadError: null,
+      fetchEpoch: epoch,
+      activeCategory: "All",
+    });
+  },
+
   selectCategory: async (activeCategory) => {
     const epoch = get().fetchEpoch + 1;
     set({
       activeCategory,
       items: [],
-      nextOffset: 0,
       hasMore: true,
       loading: true,
       loadError: null,
@@ -81,12 +91,11 @@ export const useMenuStore = create<MenuState & MenuActions>((set, get) => ({
       const { categories } = get();
       const categoryId = getCategoryId(activeCategory, categories);
       const initial = getInitialMenuBatchSize();
-      const { items, hasMore } = await fetchMenuRange(0, initial, categoryId);
+      const { items, hasMore } = await fetchMenuRange(null, initial, categoryId);
       if (get().fetchEpoch !== epoch) return;
       set({
         items,
         hasMore,
-        nextOffset: items.length,
         loading: false,
         loadError: null,
       });
@@ -107,7 +116,6 @@ export const useMenuStore = create<MenuState & MenuActions>((set, get) => ({
     const epoch = get().fetchEpoch + 1;
     set({
       items: [],
-      nextOffset: 0,
       hasMore: true,
       loading: true,
       loadError: null,
@@ -117,12 +125,11 @@ export const useMenuStore = create<MenuState & MenuActions>((set, get) => ({
       const { activeCategory, categories } = get();
       const categoryId = getCategoryId(activeCategory, categories);
       const initial = getInitialMenuBatchSize();
-      const { items, hasMore } = await fetchMenuRange(0, initial, categoryId);
+      const { items, hasMore } = await fetchMenuRange(null, initial, categoryId);
       if (get().fetchEpoch !== epoch) return;
       set({
         items,
         hasMore,
-        nextOffset: items.length,
         loading: false,
         loadError: null,
       });
@@ -140,22 +147,24 @@ export const useMenuStore = create<MenuState & MenuActions>((set, get) => ({
     const {
       loading,
       hasMore,
-      nextOffset,
+      items,
       activeCategory,
       categories,
       fetchEpoch,
     } = snapshot;
     if (loading || !hasMore) return;
 
+    const lastIdAtStart = items[items.length - 1]?.id;
+    if (lastIdAtStart == null) return;
+
     const epochAtStart = fetchEpoch;
     const categoryAtStart = activeCategory;
-    const offsetAtStart = nextOffset;
 
     set({ loading: true });
     try {
       const categoryId = getCategoryId(categoryAtStart, categories);
       const { items: newItems, hasMore: more } = await fetchMenuRange(
-        offsetAtStart,
+        lastIdAtStart,
         SCROLL_BATCH_SIZE,
         categoryId
       );
@@ -165,10 +174,16 @@ export const useMenuStore = create<MenuState & MenuActions>((set, get) => ({
       ) {
         return;
       }
+      const stillSameTail =
+        get().items.length > 0 &&
+        get().items[get().items.length - 1]?.id === lastIdAtStart;
+      if (!stillSameTail) {
+        set({ loading: false });
+        return;
+      }
       set((state) => ({
         items: [...state.items, ...newItems],
         hasMore: more,
-        nextOffset: state.nextOffset + newItems.length,
         loading: false,
         loadError: null,
       }));

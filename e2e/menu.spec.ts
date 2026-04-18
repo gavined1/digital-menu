@@ -23,4 +23,14 @@ test.describe("public menu access", () => {
     await expect(page.getByRole("navigation")).toBeVisible({ timeout: 30_000 });
     await expect(page.locator("header").first()).toBeVisible();
   });
+
+  test("product dialog closes with Escape", async ({ page }) => {
+    await page.goto("/enter", { waitUntil: "networkidle" });
+    const firstCard = page.locator("button.menu-grid-item").first();
+    await expect(firstCard).toBeVisible({ timeout: 30_000 });
+    await firstCard.click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
 });

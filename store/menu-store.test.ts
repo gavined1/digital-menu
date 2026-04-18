@@ -30,7 +30,6 @@ const initialStore = () => ({
   categories: [] as { id: number; name: string }[],
   categoryNames: [] as string[],
   items: [] as MenuItem[],
-  nextOffset: 0,
   hasMore: true,
   loading: false,
   fetchEpoch: 0,
@@ -116,6 +115,7 @@ describe("useMenuStore", () => {
 
     await useMenuStore.getState().loadFirstPage();
     expect(useMenuStore.getState().items).toHaveLength(1);
+    expect(vi.mocked(fetchMenuRange).mock.calls[0]?.[0]).toBeNull();
 
     const morePromise = useMenuStore.getState().loadMore();
     await useMenuStore.getState().selectCategory("A");

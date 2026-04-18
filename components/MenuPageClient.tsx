@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useTransition } from "react";
 import Image from "next/image";
 import { Coffee, Loader2, MapPin, Moon, Search, Star, Sun, X } from "lucide-react";
+import type { MenuItem } from "@/lib/menu";
 import type { Category } from "@/lib/menu-data";
 import type { HeroSection } from "@/lib/hero-data";
 import { useMenuStore } from "@/store/menu-store";
@@ -87,12 +88,15 @@ type MenuPageClientProps = {
   hero: HeroSection;
   categories: Category[];
   categoryNames: string[];
+  /** Server-rendered first page for "All" (avoids client waterfall). */
+  initialMenu: { items: MenuItem[]; hasMore: boolean };
 };
 
 const MenuPageClient: React.FC<MenuPageClientProps> = ({
   hero,
   categories,
   categoryNames: categoryNamesProp,
+  initialMenu,
 }) => {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const stickySentinelRef = useRef<HTMLDivElement | null>(null);
@@ -101,7 +105,9 @@ const MenuPageClient: React.FC<MenuPageClientProps> = ({
   const categoryNamesFromStore = useMenuStore((s) => s.categoryNames);
   const setActiveCategory = useMenuStore((s) => s.setActiveCategory);
   const selectCategory = useMenuStore((s) => s.selectCategory);
-  const loadFirstPage = useMenuStore((s) => s.loadFirstPage);
+  const hydrateFromServerFirstPage = useMenuStore(
+    (s) => s.hydrateFromServerFirstPage
+  );
   const loadMore = useMenuStore((s) => s.loadMore);
   const retryLoad = useMenuStore((s) => s.retryLoad);
   const setSelectedItem = useMenuStore((s) => s.setSelectedItem);
@@ -132,8 +138,11 @@ const MenuPageClient: React.FC<MenuPageClientProps> = ({
 
   useEffect(() => {
     setCategories(categories, categoryNamesProp);
-    loadFirstPage();
-  }, [categories, categoryNamesProp, setCategories, loadFirstPage]);
+  }, [categories, categoryNamesProp, setCategories]);
+
+  useEffect(() => {
+    hydrateFromServerFirstPage(initialMenu);
+  }, [hydrateFromServerFirstPage, initialMenu]);
 
   /**
    * Sentinel is not mounted until the first batch arrives (spinner-only state has no ref).
@@ -208,7 +217,6 @@ const MenuPageClient: React.FC<MenuPageClientProps> = ({
                     width={20}
                     height={20}
                     className="object-contain size-5"
-                    unoptimized
                   />
                 ) : (
                   <Coffee size={20} className="text-white shrink-0" />
@@ -384,14 +392,21 @@ const MenuPageClient: React.FC<MenuPageClientProps> = ({
             </div>
           ) : displayItems.length > 0 ? (
             <>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+              <div
+                className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6"
+                role="list"
+                aria-label="Menu products"
+              >
                 {displayItems.map((item) => (
-                  <div
+                  <button
                     key={item.id}
+                    type="button"
+                    role="listitem"
+                    aria-label={`${item.name}, ${item.price}`}
                     onClick={() => setSelectedItem(item)}
                     onMouseEnter={preloadProductDetail}
                     onFocus={preloadProductDetail}
-                    className="group relative bg-white dark:bg-zinc-900 rounded-2xl p-2 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer border border-zinc-100 dark:border-zinc-800 flex flex-col menu-grid-item"
+                    className="group relative bg-white dark:bg-zinc-900 rounded-2xl p-2 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer border border-zinc-100 dark:border-zinc-800 flex flex-col menu-grid-item text-left w-full"
                   >
                     <div className="relative w-full aspect-square rounded-xl overflow-hidden bg-zinc-100 dark:bg-zinc-800">
                       {item.image?.trim() ? (
@@ -431,7 +446,7 @@ const MenuPageClient: React.FC<MenuPageClientProps> = ({
                         </span>
                       </div>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
               {!isSearchActive ? (
