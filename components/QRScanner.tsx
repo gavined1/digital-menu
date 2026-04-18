@@ -2,24 +2,13 @@
 
 import dynamic from "next/dynamic";
 import React, { useCallback, useRef, useState } from "react";
+import { isValidEnterUrl } from "@/lib/qr-enter-url";
 
 const Scanner = dynamic(
   () =>
     import("@yudiel/react-qr-scanner").then((mod) => mod.Scanner),
   { ssr: false }
 );
-
-function isValidEnterUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url, window.location.origin);
-    return (
-      parsed.origin === window.location.origin &&
-      parsed.pathname === "/enter"
-    );
-  } catch {
-    return false;
-  }
-}
 
 export default function QRScanner() {
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +17,7 @@ export default function QRScanner() {
   const onScan = useCallback((detectedCodes: { rawValue: string }[]) => {
     const code = detectedCodes[0]?.rawValue?.trim();
     if (!code || handled.current) return;
-    if (!isValidEnterUrl(code)) {
+    if (!isValidEnterUrl(code, window.location.origin)) {
       setError("Please scan the QR code on your table.");
       return;
     }

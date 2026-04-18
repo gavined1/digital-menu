@@ -15,6 +15,9 @@ type MenuState = {
   nextOffset: number;
   hasMore: boolean;
   loading: boolean;
+  /** Bumped on each new list fetch so stale async results are ignored. */
+  fetchEpoch: number;
+  loadError: string | null;
   activeCategory: string;
   selectedItem: MenuItem | null;
   isSticky: boolean;
@@ -28,6 +31,8 @@ type MenuActions = {
   setIsSticky: (value: boolean) => void;
   loadFirstPage: () => Promise<void>;
   loadMore: () => Promise<void>;
+  /** Refetch the current category from offset 0 (e.g. after an error). */
+  retryLoad: () => Promise<void>;
 };
 
 function getCategoryId(
@@ -38,6 +43,11 @@ function getCategoryId(
   return categories.find((c) => c.name === activeCategory)?.id ?? null;
 }
 
+function loadErrorMessage(e: unknown): string {
+  if (e instanceof Error && e.message) return e.message;
+  return "Something went wrong. Please try again.";
+}
+
 export const useMenuStore = create<MenuState & MenuActions>((set, get) => ({
   categories: [],
   categoryNames: [],
@@ -45,6 +55,8 @@ export const useMenuStore = create<MenuState & MenuActions>((set, get) => ({
   nextOffset: 0,
   hasMore: true,
   loading: true,
+  fetchEpoch: 0,
+  loadError: null,
   activeCategory: "All",
   selectedItem: null,
   isSticky: false,
@@ -55,23 +67,36 @@ export const useMenuStore = create<MenuState & MenuActions>((set, get) => ({
   setActiveCategory: (activeCategory) => set({ activeCategory }),
 
   selectCategory: async (activeCategory) => {
+    const epoch = get().fetchEpoch + 1;
     set({
       activeCategory,
       items: [],
       nextOffset: 0,
       hasMore: true,
       loading: true,
+      loadError: null,
+      fetchEpoch: epoch,
     });
-    const { categories } = get();
-    const categoryId = getCategoryId(activeCategory, categories);
-    const initial = getInitialMenuBatchSize();
-    const { items, hasMore } = await fetchMenuRange(0, initial, categoryId);
-    set({
-      items,
-      hasMore,
-      nextOffset: items.length,
-      loading: false,
-    });
+    try {
+      const { categories } = get();
+      const categoryId = getCategoryId(activeCategory, categories);
+      const initial = getInitialMenuBatchSize();
+      const { items, hasMore } = await fetchMenuRange(0, initial, categoryId);
+      if (get().fetchEpoch !== epoch) return;
+      set({
+        items,
+        hasMore,
+        nextOffset: items.length,
+        loading: false,
+        loadError: null,
+      });
+    } catch (e) {
+      if (get().fetchEpoch !== epoch) return;
+      set({
+        loading: false,
+        loadError: loadErrorMessage(e),
+      });
+    }
   },
 
   setSelectedItem: (selectedItem) => set({ selectedItem }),
@@ -79,39 +104,90 @@ export const useMenuStore = create<MenuState & MenuActions>((set, get) => ({
   setIsSticky: (isSticky) => set({ isSticky }),
 
   loadFirstPage: async () => {
-    const { activeCategory, categories } = get();
+    const epoch = get().fetchEpoch + 1;
     set({
       items: [],
       nextOffset: 0,
       hasMore: true,
       loading: true,
+      loadError: null,
+      fetchEpoch: epoch,
     });
-    const categoryId = getCategoryId(activeCategory, categories);
-    const initial = getInitialMenuBatchSize();
-    const { items, hasMore } = await fetchMenuRange(0, initial, categoryId);
-    set({
-      items,
-      hasMore,
-      nextOffset: items.length,
-      loading: false,
-    });
+    try {
+      const { activeCategory, categories } = get();
+      const categoryId = getCategoryId(activeCategory, categories);
+      const initial = getInitialMenuBatchSize();
+      const { items, hasMore } = await fetchMenuRange(0, initial, categoryId);
+      if (get().fetchEpoch !== epoch) return;
+      set({
+        items,
+        hasMore,
+        nextOffset: items.length,
+        loading: false,
+        loadError: null,
+      });
+    } catch (e) {
+      if (get().fetchEpoch !== epoch) return;
+      set({
+        loading: false,
+        loadError: loadErrorMessage(e),
+      });
+    }
   },
 
   loadMore: async () => {
-    const { loading, hasMore, nextOffset, activeCategory, categories } = get();
-    if (loading || !hasMore) return;
-    set({ loading: true });
-    const categoryId = getCategoryId(activeCategory, categories);
-    const { items: newItems, hasMore: more } = await fetchMenuRange(
+    const snapshot = get();
+    const {
+      loading,
+      hasMore,
       nextOffset,
-      SCROLL_BATCH_SIZE,
-      categoryId
-    );
-    set((state) => ({
-      items: [...state.items, ...newItems],
-      hasMore: more,
-      nextOffset: state.nextOffset + newItems.length,
-      loading: false,
-    }));
+      activeCategory,
+      categories,
+      fetchEpoch,
+    } = snapshot;
+    if (loading || !hasMore) return;
+
+    const epochAtStart = fetchEpoch;
+    const categoryAtStart = activeCategory;
+    const offsetAtStart = nextOffset;
+
+    set({ loading: true });
+    try {
+      const categoryId = getCategoryId(categoryAtStart, categories);
+      const { items: newItems, hasMore: more } = await fetchMenuRange(
+        offsetAtStart,
+        SCROLL_BATCH_SIZE,
+        categoryId
+      );
+      if (
+        get().fetchEpoch !== epochAtStart ||
+        get().activeCategory !== categoryAtStart
+      ) {
+        return;
+      }
+      set((state) => ({
+        items: [...state.items, ...newItems],
+        hasMore: more,
+        nextOffset: state.nextOffset + newItems.length,
+        loading: false,
+        loadError: null,
+      }));
+    } catch (e) {
+      if (
+        get().fetchEpoch !== epochAtStart ||
+        get().activeCategory !== categoryAtStart
+      ) {
+        return;
+      }
+      set({
+        loading: false,
+        loadError: loadErrorMessage(e),
+      });
+    }
+  },
+
+  retryLoad: async () => {
+    const { activeCategory } = get();
+    await get().selectCategory(activeCategory);
   },
 }));

@@ -1,9 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import React, { useEffect, useLayoutEffect, useRef, useTransition } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useTransition } from "react";
 import Image from "next/image";
-import { Coffee, Loader2, MapPin, Moon, Search, Star, Sun } from "lucide-react";
+import { Coffee, Loader2, MapPin, Moon, Search, Star, Sun, X } from "lucide-react";
 import type { Category } from "@/lib/menu-data";
 import type { HeroSection } from "@/lib/hero-data";
 import { useMenuStore } from "@/store/menu-store";
@@ -35,6 +35,19 @@ const EMPTY_STATE = (
     <p className="text-zinc-400">No products found.</p>
   </div>
 );
+
+function filterItemsByQuery<T extends { name: string; description: string }>(
+  list: T[],
+  q: string
+): T[] {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return list;
+  return list.filter(
+    (item) =>
+      item.name.toLowerCase().includes(needle) ||
+      item.description.toLowerCase().includes(needle)
+  );
+}
 
 const BACKGROUND_PATTERN_STYLE = {
   backgroundImage: `url("${KBACH_PATTERN}")`,
@@ -90,19 +103,30 @@ const MenuPageClient: React.FC<MenuPageClientProps> = ({
   const selectCategory = useMenuStore((s) => s.selectCategory);
   const loadFirstPage = useMenuStore((s) => s.loadFirstPage);
   const loadMore = useMenuStore((s) => s.loadMore);
+  const retryLoad = useMenuStore((s) => s.retryLoad);
   const setSelectedItem = useMenuStore((s) => s.setSelectedItem);
   const setIsSticky = useMenuStore((s) => s.setIsSticky);
   const items = useMenuStore((s) => s.items);
-  const hasMore = useMenuStore((s) => s.hasMore);
   const loading = useMenuStore((s) => s.loading);
+  const loadError = useMenuStore((s) => s.loadError);
   const activeCategory = useMenuStore((s) => s.activeCategory);
   const selectedItem = useMenuStore((s) => s.selectedItem);
   const isSticky = useMenuStore((s) => s.isSticky);
 
+  const [searchOpen, setSearchOpen] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+
   const categoryNames =
     categoryNamesFromStore.length > 0 ? categoryNamesFromStore : categoryNamesProp;
 
-  const hasGridItems = items.length > 0;
+  const displayItems = useMemo(
+    () => filterItemsByQuery(items, searchQuery),
+    [items, searchQuery]
+  );
+
+  const hasGridItems = displayItems.length > 0;
+  const isSearchActive = searchQuery.trim().length > 0;
 
   const [isPending, startTransition] = useTransition();
 
@@ -118,7 +142,7 @@ const MenuPageClient: React.FC<MenuPageClientProps> = ({
    */
   useLayoutEffect(() => {
     const el = loadMoreRef.current;
-    if (!el || !hasGridItems) return;
+    if (!el || !hasGridItems || isSearchActive) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -130,7 +154,13 @@ const MenuPageClient: React.FC<MenuPageClientProps> = ({
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [loadMore, hasGridItems]);
+  }, [loadMore, hasGridItems, isSearchActive]);
+
+  useEffect(() => {
+    if (searchOpen) {
+      searchInputRef.current?.focus();
+    }
+  }, [searchOpen]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -189,12 +219,42 @@ const MenuPageClient: React.FC<MenuPageClientProps> = ({
               </span>
             </div>
             <div className="flex items-center gap-1">
-              <button className="p-2 rounded-full text-white hover:bg-white/10 transition-colors" aria-label="Search">
-                <Search size={22} />
+              <button
+                type="button"
+                className="p-2 rounded-full text-white hover:bg-white/10 transition-colors"
+                aria-label={searchOpen ? "Close search" : "Search menu"}
+                aria-expanded={searchOpen}
+                aria-controls="menu-search-panel"
+                onClick={() => {
+                  setSearchOpen((o) => !o);
+                  if (searchOpen) setSearchQuery("");
+                }}
+              >
+                {searchOpen ? <X size={22} /> : <Search size={22} />}
               </button>
               <ThemeToggle />
             </div>
           </div>
+          {searchOpen ? (
+            <div
+              id="menu-search-panel"
+              className="container mx-auto px-5 pt-2 pb-3"
+            >
+              <label htmlFor="menu-search-input" className="sr-only">
+                Search products
+              </label>
+              <input
+                ref={searchInputRef}
+                id="menu-search-input"
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by name or description…"
+                autoComplete="off"
+                className="w-full max-w-md mx-auto block rounded-full border border-white/25 bg-black/25 backdrop-blur-md px-4 py-2.5 text-sm text-white placeholder:text-white/60 outline-none focus:ring-2 focus:ring-amber-500/50"
+              />
+            </div>
+          ) : null}
         </nav>
 
         {/* 2. Hero Section */}
@@ -286,16 +346,46 @@ const MenuPageClient: React.FC<MenuPageClientProps> = ({
               {activeCategory}
             </h2>
             <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 bg-white dark:bg-zinc-900 px-2 py-1 rounded-full border border-zinc-200 dark:border-zinc-800">
-              {items.length} Products
+              {isSearchActive
+                ? `${displayItems.length} match${displayItems.length === 1 ? "" : "es"}`
+                : `${items.length} Products`}
             </span>
           </div>
 
-          {loading && items.length === 0 ? (
+          {loadError ? (
+            <div
+              className="mb-6 rounded-2xl border border-amber-500/40 bg-amber-500/10 dark:bg-amber-500/15 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+              role="alert"
+            >
+              <p className="text-sm text-zinc-800 dark:text-zinc-200">{loadError}</p>
+              <button
+                type="button"
+                onClick={() => void retryLoad()}
+                disabled={loading}
+                className="shrink-0 rounded-full bg-zinc-900 dark:bg-white px-4 py-2 text-sm font-medium text-white dark:text-zinc-900 disabled:opacity-50"
+              >
+                Retry
+              </button>
+            </div>
+          ) : null}
+
+          {loading && items.length === 0 && !loadError ? (
             LOADING_INITIAL
-          ) : items.length > 0 ? (
+          ) : items.length > 0 && displayItems.length === 0 ? (
+            <div className="py-20 text-center">
+              <p className="text-zinc-400">No matching products.</p>
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="mt-3 text-sm font-medium text-amber-600 dark:text-amber-400"
+              >
+                Clear search
+              </button>
+            </div>
+          ) : displayItems.length > 0 ? (
             <>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-                {items.map((item) => (
+                {displayItems.map((item) => (
                   <div
                     key={item.id}
                     onClick={() => setSelectedItem(item)}
@@ -344,14 +434,18 @@ const MenuPageClient: React.FC<MenuPageClientProps> = ({
                   </div>
                 ))}
               </div>
-              <div
-                ref={loadMoreRef}
-                className="min-h-[72px] flex items-center justify-center py-8"
-                aria-hidden
-              >
-                {loading && items.length > 0 ? LOADING_MORE : null}
-              </div>
+              {!isSearchActive ? (
+                <div
+                  ref={loadMoreRef}
+                  className="min-h-[72px] flex items-center justify-center py-8"
+                  aria-hidden
+                >
+                  {loading && items.length > 0 ? LOADING_MORE : null}
+                </div>
+              ) : null}
             </>
+          ) : loadError && items.length === 0 ? (
+            <div className="py-8" aria-hidden />
           ) : (
             EMPTY_STATE
           )}
