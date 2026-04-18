@@ -190,7 +190,9 @@ export const MenuGrid: React.FC<MenuGridProps> = ({
                   top: 0,
                   left: 0,
                   width: "100%",
-                  transform: `translateY(${virtualRow.start}px)`,
+                  // `start` is in document-aligned space (includes scrollMargin); container is already
+                  // positioned under the hero, so subtract scrollMargin to avoid a growing top gap.
+                  transform: `translateY(${virtualRow.start - scrollMargin}px)`,
                 }}
               >
                 <div
