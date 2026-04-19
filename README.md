@@ -21,6 +21,17 @@ A restaurant **digital menu** web app: guests open the menu after scanning a tab
 - **Quality**
   - **Vitest** unit tests, **Playwright** E2E tests, **ESLint**, GitHub Actions CI.
 
+## Roadmap (future features)
+
+Planned capabilities that are **not implemented yet**. Status is tracked here for contributors and forks.
+
+| Feature | Summary | Status |
+|--------|---------|--------|
+| **Table tracking** | Persist which physical table a guest session belongs to (e.g. table id in `/enter` or QR payload), show it in dashboard/KDS, and tie orders or sessions to that table. | Planned |
+| **Guest self-ordering** | Let guests build a cart and submit orders from the table **without speaking to staff** — payment (optional), order queue for kitchen/bar, and staff notifications or print integration. | Planned |
+
+**Notes:** Today, QR entry only grants menu access; there is no table identity in the session, cart, or order pipeline. Self-ordering will need new data models (orders, line items, table/session linkage), RLS, and likely a staff-facing order board — design TBD.
+
 ## Tech stack
 
 | Layer | Choice |
