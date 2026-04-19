@@ -116,6 +116,8 @@ The dashboard (`/login` → `/dashboard`) uses **Supabase Auth** with email and 
 
 Use the email and password from a dashboard user to sign in at `/login`.
 
+**No role-based access:** The app does not distinguish admin vs. editor vs. viewer (or similar). Every signed-in user has the **same** dashboard permissions. If you want different credentials—for example, one login per manager—create **separate users** in the Supabase Dashboard; they still share the same single role as far as this codebase is concerned.
+
 ### 3. Database tables and RLS
 
 The app expects these **public** tables (names match the code exactly):
