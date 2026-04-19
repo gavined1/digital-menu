@@ -104,12 +104,17 @@ Use the included **`.env.example`** as a template for `.env.local`.
 
 In [Supabase Dashboard](https://supabase.com/dashboard), create a project and note the **URL** and **anon/publishable** key.
 
-### 2. Enable Auth
+### 2. Enable Auth (dashboard login)
 
-- Enable **Email** provider (and any others you need).
-- Under **Authentication → URL configuration**, add your local and production site URLs to **Redirect URLs** as needed.
+The dashboard (`/login` → `/dashboard`) uses **Supabase Auth** with email and password. Guests do **not** sign up; only staff accounts should exist.
 
-Create at least one user (e.g. **Authentication → Users → Add user**) for dashboard login.
+1. In the Supabase Dashboard, open **Authentication**.
+2. Under **Sign In / Providers**, enable the **Email** provider if it is not already on.
+3. On the same **Sign In / Providers** screen, turn **Allow new users to sign up** **OFF**. That way the public app cannot self-register—only accounts you create can sign in.
+4. **Create staff accounts manually:** **Authentication → Users** → **Add user** → enter email, password, and confirm. Repeat for each person who needs dashboard access. (You can also use **Invite** if your project supports it.)
+5. Under **Authentication → URL configuration**, add your local and production site URLs to **Redirect URLs** as needed.
+
+Use the email and password from a dashboard user to sign in at `/login`.
 
 ### 3. Database tables and RLS
 
