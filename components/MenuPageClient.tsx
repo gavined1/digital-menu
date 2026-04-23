@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Coffee, Loader2, MapPin, Moon, Search, Sun, X } from "lucide-react";
 import type { MenuItem } from "@/lib/menu";
 import type { Category } from "@/lib/menu-data";
+import type { MenuItemCounts } from "@/lib/menu-item-counts";
 import type { HeroSection } from "@/lib/hero-data";
 import { MenuGrid } from "@/components/MenuGrid";
 import { useMenuStore } from "@/store/menu-store";
@@ -87,6 +88,8 @@ type MenuPageClientProps = {
   categoryNames: string[];
   /** Server-rendered first page for "All" (avoids client waterfall). */
   initialMenu: { items: MenuItem[]; hasMore: boolean };
+  /** Full DB totals for the product badge (not the infinite-scroll batch size). */
+  itemCounts: MenuItemCounts;
 };
 
 const MenuPageClient: React.FC<MenuPageClientProps> = ({
@@ -94,6 +97,7 @@ const MenuPageClient: React.FC<MenuPageClientProps> = ({
   categories,
   categoryNames: categoryNamesProp,
   initialMenu,
+  itemCounts,
 }) => {
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const stickySentinelRef = useRef<HTMLDivElement | null>(null);
@@ -127,6 +131,13 @@ const MenuPageClient: React.FC<MenuPageClientProps> = ({
     () => filterItemsByQuery(items, searchQuery),
     [items, searchQuery]
   );
+
+  const totalProductsLabel = useMemo(() => {
+    if (activeCategory === "All") return itemCounts.totalAll;
+    const cat = categories.find((c) => c.name === activeCategory);
+    if (!cat) return itemCounts.totalAll;
+    return itemCounts.byCategoryId[cat.id] ?? 0;
+  }, [activeCategory, categories, itemCounts]);
 
   const hasGridItems = displayItems.length > 0;
   const isSearchActive = searchQuery.trim().length > 0;
@@ -353,7 +364,7 @@ const MenuPageClient: React.FC<MenuPageClientProps> = ({
             <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 bg-white dark:bg-zinc-900 px-2 py-1 rounded-full border border-zinc-200 dark:border-zinc-800">
               {isSearchActive
                 ? `${displayItems.length} match${displayItems.length === 1 ? "" : "es"}`
-                : `${items.length} Products`}
+                : `${totalProductsLabel} Product${totalProductsLabel === 1 ? "" : "s"}`}
             </span>
           </div>
 
