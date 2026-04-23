@@ -15,7 +15,5 @@ create policy "Authenticated can delete menu item images"
   on storage.objects for delete to authenticated
   using (bucket_id = 'menu-items');
 
--- Public read (public bucket already allows this; explicit policy for clarity)
-create policy "Public read menu item images"
-  on storage.objects for select to public
-  using (bucket_id = 'menu-items');
+-- Public URLs for a public bucket do not require a SELECT policy on storage.objects.
+-- A broad SELECT here enables listing all objects (Supabase advisor 0025). See migration 20250224100000.

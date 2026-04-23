@@ -3,4 +3,4 @@
 drop policy if exists "Authenticated can insert app_settings" on public.app_settings;
 create policy "Authenticated can insert app_settings"
   on public.app_settings for insert to authenticated
-  with check (true);
+  with check (id = 1);

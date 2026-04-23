@@ -161,6 +161,7 @@ The included migrations under `supabase/migrations/` cover:
 
 - Storage policies for the **`menu-items`** bucket  
 - `app_settings` row, **`set_app_max_tables` RPC** (`SECURITY DEFINER`), and related policies  
+- **`20250224100000_security_advisor_rls_storage.sql`** — tightens authenticated write RLS (no bare `TRUE`) and removes the broad public `storage.objects` SELECT that enabled bucket listing  
 
 Apply them in order in the SQL editor after you create tables and bucket. See also `supabase/README_STORAGE.md` for the storage bucket checklist.
 
@@ -172,6 +173,16 @@ Apply them in order in the SQL editor after you create tables and bucket. See al
 ### 5. Seed data
 
 Insert one **`hero_section`** row with `id = 1` and one **`app_settings`** row with `id = 1` if not created by migrations. Add categories and menu items from the dashboard or via SQL.
+
+### 6. Security advisors (recommended)
+
+Run **`supabase/migrations/20250224100000_security_advisor_rls_storage.sql`** so the database matches the [Supabase database linter](https://supabase.com/docs/guides/database/database-advisors) expectations:
+
+- **`app_settings` / `hero_section`:** authenticated INSERT/UPDATE/SELECT limited to **`id = 1`** (singleton rows).  
+- **`categories` / `menu_items`:** authenticated writes require a real JWT — **`(select auth.uid()) IS NOT NULL`** instead of `USING (true)` / `WITH CHECK (true)` (this app still has no per-user roles; all staff share the same access).  
+- **Storage:** drops **`Public read menu item images`** on `storage.objects`. A **public** `menu-items` bucket still serves files by **public URL**; the removed policy mainly blocked anonymous **listing** of every object path.
+
+In the Supabase Dashboard, under **Authentication**, enable **Leaked password protection** (HaveIBeenPwned) if it is off — the linter reports this as `auth_leaked_password_protection`.
 
 ## Scripts
 
@@ -206,7 +217,8 @@ Forks should add repository **secrets** matching those env vars for CI to pass.
 - Dashboard routes use **Supabase session** cookies via `@supabase/ssr` server client; unauthenticated users are redirected to `/login`.  
 - Guest access uses a **signed, expiring** cookie; verification does not trust client-supplied expiry without signature check.  
 - **Never** expose `MENU_ACCESS_SECRET` or service-role keys to the browser; only `NEXT_PUBLIC_*` keys belong in client bundles.  
-- RLS policies should enforce which rows **anon** vs **authenticated** roles can read/write.
+- RLS policies should enforce which rows **anon** vs **authenticated** roles can read/write.  
+- After schema changes, re-check **Database → Advisors** in Supabase and apply migrations such as `20250224100000_security_advisor_rls_storage.sql` where relevant.
 
 ## Contributing
 

@@ -3,4 +3,4 @@
 DROP POLICY IF EXISTS "Authenticated can read app_settings" ON public.app_settings;
 CREATE POLICY "Authenticated can read app_settings"
   ON public.app_settings FOR SELECT TO authenticated
-  USING (true);
+  USING (id = 1);

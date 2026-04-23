@@ -20,7 +20,7 @@ ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Authenticated can read app_settings" ON public.app_settings;
 CREATE POLICY "Authenticated can read app_settings"
   ON public.app_settings FOR SELECT TO authenticated
-  USING (true);
+  USING (id = 1);
 
 -- Function runs with definer rights → bypasses RLS
 CREATE OR REPLACE FUNCTION public.set_app_max_tables(n smallint)
